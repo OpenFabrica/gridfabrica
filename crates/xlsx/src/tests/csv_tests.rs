@@ -1,5 +1,5 @@
-use gridcraft_core::{CellRef, DateSystem, Value};
-use gridcraft_model::{Sheet, Workbook};
+use gridfabrica_core::{CellRef, DateSystem, Value};
+use gridfabrica_model::{Sheet, Workbook};
 
 use crate::csv::{decode_text, sniff_delimiter};
 use crate::{CsvOptions, Format, read_csv, sniff, write_csv};
@@ -88,7 +88,7 @@ fn writing() {
     s.set_value(CellRef::new(2, 1), Value::Number(0.1));
     s.set_value(CellRef::new(2, 2), Value::Bool(false));
     s.set_value(CellRef::new(3, 3), Value::text("x\ny"));
-    s.set_value(CellRef::new(3, 1), Value::Error(gridcraft_core::CellError::Div0));
+    s.set_value(CellRef::new(3, 1), Value::Error(gridfabrica_core::CellError::Div0));
     wb.sheets = vec![std::sync::Arc::new(s)];
     let out = String::from_utf8(write_csv(wb.sheet(0).unwrap(), &wb, b',')).unwrap();
     assert_eq!(out, "\"a,b\",\"q\"\"t\",\r\n0.1,FALSE,\r\n#DIV/0!,,\"x\ny\"\r\n");
@@ -117,4 +117,60 @@ fn hostile_csv() {
     let wide = ",".repeat(20_000);
     let wb = read_csv(format!("{wide}x").as_bytes(), &CsvOptions::default()).unwrap();
     assert!(wb.sheet(0).unwrap().cells.is_empty(), "fields past column XFD are dropped");
+}
+
+#[test]
+fn chinese_csv_gbk_is_not_misread_as_western_text() {
+    let src = b"\xc3\xfb\xb3\xc6,\xb1\xb8\xd7\xa2\x0a\xd6\xd0\xce\xc4,\xb2\xe2\xca\xd4\xca\xfd\xbe\xdd\x0a\xb1\xb1\xbe\xa9,100";
+    let wb = read_csv(src, &CsvOptions::default()).unwrap();
+    assert_eq!(v(&wb, 0, 0), Value::text("名称"));
+    assert_eq!(v(&wb, 0, 1), Value::text("备注"));
+    assert_eq!(v(&wb, 1, 0), Value::text("中文"));
+    assert_eq!(v(&wb, 1, 1), Value::text("测试数据"));
+    assert_eq!(v(&wb, 2, 0), Value::text("北京"));
+    assert_eq!(v(&wb, 2, 1), Value::Number(100.0));
+}
+
+#[test]
+fn chinese_csv_unicode_and_western_encodings_do_not_regress() {
+    let text = "名称,备注\n中文,测试数据\n北京,100";
+    for bytes in [text.as_bytes().to_vec(), [b"\xef\xbb\xbf".as_slice(), text.as_bytes()].concat()] {
+        let wb = read_csv(&bytes, &CsvOptions::default()).unwrap();
+        assert_eq!(v(&wb, 1, 0), Value::text("中文"));
+        assert_eq!(v(&wb, 1, 1), Value::text("测试数据"));
+    }
+    for (bom, little) in [([0xff, 0xfe], true), ([0xfe, 0xff], false)] {
+        let mut bytes = bom.to_vec();
+        for unit in text.encode_utf16() {
+            bytes.extend(if little { unit.to_le_bytes() } else { unit.to_be_bytes() });
+        }
+        let wb = read_csv(&bytes, &CsvOptions::default()).unwrap();
+        assert_eq!(v(&wb, 1, 0), Value::text("中文"));
+    }
+    let western = b"name,place\nfran\xe7ais,No\xebl\nr\xe9sum\xe9,caf\xe9";
+    let wb = read_csv(western, &CsvOptions::default()).unwrap();
+    assert_eq!(v(&wb, 1, 0), Value::text("français"));
+    assert_eq!(v(&wb, 1, 1), Value::text("Noël"));
+    assert_eq!(v(&wb, 2, 0), Value::text("résumé"));
+    assert_eq!(v(&wb, 2, 1), Value::text("café"));
+    assert_eq!(decode_text(b"\xd6\xd0\xce\xc4"), "中文");
+}
+
+#[test]
+fn chinese_csv_gb18030_preserves_extended_characters() {
+    let (bytes, _, errors) = encoding_rs::GB18030.encode("名称,备注\n中文,扩展汉字𠮷与符号😀");
+    assert!(!errors);
+    let wb = read_csv(&bytes, &CsvOptions::default()).unwrap();
+    assert_eq!(v(&wb, 1, 0), Value::text("中文"));
+    assert_eq!(v(&wb, 1, 1), Value::text("扩展汉字𠮷与符号😀"));
+}
+
+#[test]
+fn chinese_csv_big5_preserves_traditional_text() {
+    let (bytes, _, errors) = encoding_rs::BIG5.encode("名稱,備註\n中文,測試資料\n臺北,100");
+    assert!(!errors);
+    let wb = read_csv(&bytes, &CsvOptions::default()).unwrap();
+    assert_eq!(v(&wb, 0, 0), Value::text("名稱"));
+    assert_eq!(v(&wb, 1, 1), Value::text("測試資料"));
+    assert_eq!(v(&wb, 2, 0), Value::text("臺北"));
 }

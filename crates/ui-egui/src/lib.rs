@@ -1,5 +1,5 @@
-//! GridCraft's egui frontend: an Excel-style window (title bar with Quick Access Toolbar,
-//! ribbon, formula bar, grid, sheet tabs, status bar) over `gridcraft-engine`.
+//! GridFabrica's egui frontend: an Excel-style window (title bar with Quick Access Toolbar,
+//! ribbon, formula bar, grid, sheet tabs, status bar) over `gridfabrica-engine`.
 //!
 //! The UI is thin: it reads engine state and acts through [`SheetApp::run`] (engine commands by
 //! id). Everything it can do is also reachable over the control channel ([`control`]).
@@ -13,6 +13,7 @@ pub mod dialogs;
 pub mod editor;
 pub mod formula_bar;
 pub mod grid;
+pub mod i18n;
 pub mod icons;
 pub mod panes;
 pub mod pivot_pane;
@@ -23,8 +24,8 @@ pub mod widgets;
 
 use std::collections::HashMap;
 
-use gridcraft_engine::core::{CellRef, RangeRef};
-use gridcraft_engine::{Session, UiRequest};
+use gridfabrica_engine::core::{CellRef, RangeRef};
+use gridfabrica_engine::{Session, UiRequest};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value as Json, json};
 
@@ -35,6 +36,7 @@ pub use control::{ControlRequest, ControlResponse};
 #[serde(default, rename_all = "camelCase")]
 pub struct UiState {
     pub dark: bool,
+    pub language: i18n::Language,
     pub ribbon_tab: String,
     pub ribbon_collapsed: bool,
     pub formula_bar: bool,
@@ -47,6 +49,7 @@ impl Default for UiState {
     fn default() -> Self {
         UiState {
             dark: false,
+            language: i18n::Language::default(),
             ribbon_tab: "Home".into(),
             ribbon_collapsed: false,
             formula_bar: true,
@@ -142,7 +145,7 @@ impl SheetApp {
 
     /// One-time context setup: fonts and visuals.
     pub fn setup_context(ctx: &egui::Context, dark: bool) {
-        ctx.set_fonts(theme::font_definitions());
+        theme::install_fonts(ctx);
         theme::apply(ctx, dark);
     }
 
@@ -162,7 +165,7 @@ impl SheetApp {
             if e.contains("is not available right now") {
                 self.toast = Some((e, now_ms()));
             } else {
-                self.message = Some(("GridCraft".into(), clean_error(&e)));
+                self.message = Some(("GridFabrica".into(), clean_error(&e)));
             }
         }
     }
@@ -170,6 +173,18 @@ impl SheetApp {
     /// UI-only commands (dialogs, view toggles that aren't saved in the file).
     fn run_ui_command(&mut self, id: &str, p: &Json) -> Option<Result<Json, String>> {
         let r = match id {
+            "ui.language" => {
+                let Some(code) = p.get("language").and_then(Json::as_str) else {
+                    return Some(Err("missing `language` (en or zh-CN)".into()));
+                };
+                let language = match i18n::Language::parse(code) {
+                    Ok(language) => language,
+                    Err(error) => return Some(Err(error)),
+                };
+                self.ui.language = language;
+                self.grid.last_title = None;
+                Ok(json!({"language": language.code()}))
+            }
             "ui.ribbonTab" => {
                 self.ui.ribbon_tab = p.get("tab").and_then(Json::as_str).unwrap_or("Home").to_string();
                 Ok(Json::Null)
@@ -206,7 +221,7 @@ impl SheetApp {
         for req in self.session.take_ui_requests() {
             match req {
                 UiRequest::Dialog(name, params) => self.open_dialog(&name, params),
-                UiRequest::Message(m) => self.message = Some(("GridCraft".into(), m)),
+                UiRequest::Message(m) => self.message = Some(("GridFabrica".into(), m)),
                 UiRequest::EditCell(text) => self.begin_edit(text, false),
                 UiRequest::OpenUrl(u) => {
                     if let Some(f) = &self.services.open_url {
@@ -237,7 +252,7 @@ impl SheetApp {
                     }
                 } else if let Some(dl) = &self.services.download
                     && let Ok(r) = self.session.run("file.saveBytes", json!({"format": "xlsx"}))
-                    && let Some(b) = r.get("base64").and_then(Json::as_str).and_then(gridcraft_engine::io::base64_decode)
+                    && let Some(b) = r.get("base64").and_then(Json::as_str).and_then(gridfabrica_engine::io::base64_decode)
                 {
                     let name = r.get("name").and_then(Json::as_str).unwrap_or("Book.xlsx").to_string();
                     dl(&name, &b);
@@ -254,7 +269,7 @@ impl SheetApp {
                 self.ui.recent.insert(0, path.to_string());
                 self.ui.recent.truncate(20);
             }
-            Err(e) => self.message = Some(("GridCraft".into(), clean_error(&e))),
+            Err(e) => self.message = Some(("GridFabrica".into(), clean_error(&e))),
         }
         self.after_engine();
     }
@@ -287,26 +302,26 @@ impl SheetApp {
             ed.completion = editor::column_completion(sh, at, &ed.text);
         }
         self.editor = Some(ed);
-        self.session.mode = if replace { gridcraft_engine::Mode::Enter } else { gridcraft_engine::Mode::Edit };
+        self.session.mode = if replace { gridfabrica_engine::Mode::Enter } else { gridfabrica_engine::Mode::Edit };
     }
 
     /// Commits the edit; `then` moves the selection (dr, dc) afterwards.
     pub fn commit_edit(&mut self, dr: i64, dc: i64, array: bool, fill_selection: bool) -> bool {
         let Some(ed) = self.editor.take() else { return true };
-        self.session.mode = gridcraft_engine::Mode::Ready;
+        self.session.mode = gridfabrica_engine::Mode::Ready;
         let text = match &ed.completion {
             Some(full) if full.to_lowercase().starts_with(&ed.text.to_lowercase()) => full.clone(),
             _ => ed.text.clone(),
         };
         // Data validation.
         if let Some(d) = self.session.active()
-            && let Some((dv, msg)) = gridcraft_engine::cmd::data::check_validation(&d.wb, ed.sheet, ed.cell, &text)
+            && let Some((dv, msg)) = gridfabrica_engine::cmd::data::check_validation(&d.wb, ed.sheet, ed.cell, &text)
         {
-            if dv.error_style == gridcraft_engine::model::ErrorStyle::Stop {
-                let title = if dv.error_title.is_empty() { "GridCraft".to_string() } else { dv.error_title.clone() };
+            if dv.error_style == gridfabrica_engine::model::ErrorStyle::Stop {
+                let title = if dv.error_title.is_empty() { "GridFabrica".to_string() } else { dv.error_title.clone() };
                 self.message = Some((title, msg));
                 self.editor = Some(ed);
-                self.session.mode = gridcraft_engine::Mode::Edit;
+                self.session.mode = gridfabrica_engine::Mode::Edit;
                 return false;
             }
             self.toast = Some((msg, now_ms()));
@@ -325,9 +340,9 @@ impl SheetApp {
                 true
             }
             Err(e) => {
-                self.message = Some(("GridCraft".into(), clean_error(&e)));
+                self.message = Some(("GridFabrica".into(), clean_error(&e)));
                 self.editor = Some(ed);
-                self.session.mode = gridcraft_engine::Mode::Edit;
+                self.session.mode = gridfabrica_engine::Mode::Edit;
                 false
             }
         }
@@ -335,7 +350,7 @@ impl SheetApp {
 
     pub fn cancel_edit(&mut self) {
         self.editor = None;
-        self.session.mode = gridcraft_engine::Mode::Ready;
+        self.session.mode = gridfabrica_engine::Mode::Ready;
     }
 
     /// Enter/Tab move inside a multi-cell selection, otherwise to the next cell.
@@ -366,6 +381,7 @@ impl SheetApp {
             theme::apply(ctx, self.ui.dark);
         }
         control::poll(self, ctx);
+        self.ui.language.install(ctx);
         // Files read asynchronously (web file picker, dropped files).
         let arrived: Vec<(String, Vec<u8>)> = self
             .services
@@ -374,9 +390,9 @@ impl SheetApp {
             .map(|i| std::mem::take(&mut *i.lock().unwrap_or_else(std::sync::PoisonError::into_inner)))
             .unwrap_or_default();
         for (name, bytes) in arrived {
-            let b64 = gridcraft_engine::io::base64_encode(&bytes);
+            let b64 = gridfabrica_engine::io::base64_encode(&bytes);
             if let Err(e) = self.session.run("file.open", json!({"name": name, "base64": b64})) {
-                self.message = Some(("GridCraft".into(), clean_error(&e)));
+                self.message = Some(("GridFabrica".into(), clean_error(&e)));
             }
             self.after_engine();
         }
@@ -398,6 +414,7 @@ impl SheetApp {
             ctx.request_repaint();
             return;
         }
+        self.ui.language.install(&ctx);
         let t0 = now_ms();
         let t = theme::Tokens::get(&ctx);
         ribbon::title_bar(self, ui);
@@ -444,7 +461,8 @@ impl SheetApp {
         }
         // Window title.
         if let Some(d) = self.session.active() {
-            let title = format!("{}{}", d.display_title(), if d.is_dirty() { " — Edited" } else { "" });
+            let title =
+                format!("{}{}", d.display_title(), if d.is_dirty() { format!(" — {}", self.ui.language.text("Edited")) } else { String::new() });
             if self.grid.last_title.as_deref() != Some(title.as_str()) {
                 ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));
                 self.grid.last_title = Some(title);

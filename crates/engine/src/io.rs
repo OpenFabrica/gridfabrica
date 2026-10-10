@@ -2,12 +2,12 @@
 
 use std::fmt::Write as _;
 
-use gridcraft_core::CellRef;
-use gridcraft_model::Workbook;
+use gridfabrica_core::CellRef;
+use gridfabrica_model::Workbook;
 
 use crate::{EngineError, Result};
 
-/// File formats GridCraft reads or writes.
+/// File formats GridFabrica reads or writes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FileKind {
     Xlsx,
@@ -35,14 +35,14 @@ impl FileKind {
 /// don't say.
 pub fn open_bytes(name: &str, bytes: &[u8]) -> Result<(Workbook, Vec<String>)> {
     let kind = FileKind::from_path(name);
-    let sniffed = gridcraft_xlsx::sniff(bytes);
-    if sniffed == gridcraft_xlsx::Format::Xlsx || kind == Some(FileKind::Xlsx) {
-        let (wb, report) = gridcraft_xlsx::read_xlsx(bytes).map_err(|e| EngineError::Other(format!("We can't open '{name}': {e}")))?;
+    let sniffed = gridfabrica_xlsx::sniff(bytes);
+    if sniffed == gridfabrica_xlsx::Format::Xlsx || kind == Some(FileKind::Xlsx) {
+        let (wb, report) = gridfabrica_xlsx::read_xlsx(bytes).map_err(|e| EngineError::Other(format!("We can't open '{name}': {e}")))?;
         return Ok((wb, report.warnings));
     }
     match kind {
         Some(FileKind::Json) => {
-            let mut wb: Workbook = serde_json::from_slice(bytes).map_err(|e| EngineError::Other(format!("not a GridCraft JSON workbook: {e}")))?;
+            let mut wb: Workbook = serde_json::from_slice(bytes).map_err(|e| EngineError::Other(format!("not a GridFabrica JSON workbook: {e}")))?;
             wb.styles.rebuild_index();
             if wb.sheets.is_empty() {
                 wb = Workbook::new();
@@ -50,14 +50,14 @@ pub fn open_bytes(name: &str, bytes: &[u8]) -> Result<(Workbook, Vec<String>)> {
             Ok((wb, vec![]))
         }
         Some(FileKind::Tsv) => {
-            let opts = gridcraft_xlsx::CsvOptions { delimiter: b'\t', ..Default::default() };
-            let mut wb = gridcraft_xlsx::read_csv(bytes, &opts).map_err(|e| EngineError::Other(e.to_string()))?;
+            let opts = gridfabrica_xlsx::CsvOptions { delimiter: b'\t', ..Default::default() };
+            let mut wb = gridfabrica_xlsx::read_csv(bytes, &opts).map_err(|e| EngineError::Other(e.to_string()))?;
             rename_first_sheet(&mut wb, name);
             Ok((wb, vec![]))
         }
         _ => {
-            let opts = gridcraft_xlsx::CsvOptions { delimiter: 0, ..Default::default() };
-            let mut wb = gridcraft_xlsx::read_csv(bytes, &opts).map_err(|e| EngineError::Other(e.to_string()))?;
+            let opts = gridfabrica_xlsx::CsvOptions { delimiter: 0, ..Default::default() };
+            let mut wb = gridfabrica_xlsx::read_csv(bytes, &opts).map_err(|e| EngineError::Other(e.to_string()))?;
             rename_first_sheet(&mut wb, name);
             Ok((wb, vec![]))
         }
@@ -80,9 +80,9 @@ fn rename_first_sheet(wb: &mut Workbook, path: &str) {
 pub fn save_bytes(wb: &Workbook, path: &str) -> Result<Vec<u8>> {
     let sheet = wb.active_sheet;
     match FileKind::from_path(path).unwrap_or(FileKind::Xlsx) {
-        FileKind::Xlsx => gridcraft_xlsx::write_xlsx(wb).map_err(|e| EngineError::Other(e.to_string())),
-        FileKind::Csv => Ok(wb.sheet(sheet).map(|sh| gridcraft_xlsx::write_csv(sh, wb, b',')).unwrap_or_default()),
-        FileKind::Tsv => Ok(wb.sheet(sheet).map(|sh| gridcraft_xlsx::write_csv(sh, wb, b'\t')).unwrap_or_default()),
+        FileKind::Xlsx => gridfabrica_xlsx::write_xlsx(wb).map_err(|e| EngineError::Other(e.to_string())),
+        FileKind::Csv => Ok(wb.sheet(sheet).map(|sh| gridfabrica_xlsx::write_csv(sh, wb, b',')).unwrap_or_default()),
+        FileKind::Tsv => Ok(wb.sheet(sheet).map(|sh| gridfabrica_xlsx::write_csv(sh, wb, b'\t')).unwrap_or_default()),
         FileKind::Json => serde_json::to_vec_pretty(wb).map_err(|e| EngineError::Other(e.to_string())),
         FileKind::Html => Ok(to_html(wb, sheet).into_bytes()),
     }
@@ -123,16 +123,16 @@ pub fn to_html(wb: &Workbook, sheet: usize) -> String {
                 if let Some(h) = st.font.color.hex(&wb.theme) {
                     let _ = write!(css, "color:{h};");
                 }
-                if st.fill.pattern != gridcraft_model::PatternType::None
+                if st.fill.pattern != gridfabrica_model::PatternType::None
                     && let Some(h) = st.fill.fg.hex(&wb.theme)
                 {
                     let _ = write!(css, "background:{h};");
                 }
                 let v = sh.value(c);
                 let align = match st.align.h {
-                    gridcraft_model::HAlign::Center => "center",
-                    gridcraft_model::HAlign::Right => "right",
-                    gridcraft_model::HAlign::Left => "left",
+                    gridfabrica_model::HAlign::Center => "center",
+                    gridfabrica_model::HAlign::Right => "right",
+                    gridfabrica_model::HAlign::Left => "left",
                     _ if v.is_number() => "right",
                     _ => "left",
                 };

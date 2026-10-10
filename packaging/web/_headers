@@ -9,5 +9,13 @@
 /*.js
   Cache-Control: public, max-age=31536000, immutable
 
+/*.otf
+  Content-Type: font/otf
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.ttf
+  Content-Type: font/ttf
+  Cache-Control: public, max-age=31536000, immutable
+
 /index.html
   Cache-Control: no-cache

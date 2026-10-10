@@ -2,8 +2,8 @@
 
 use std::sync::Arc;
 
-use gridcraft_core::addr::{letters_to_col, parse_a1_prefix};
-use gridcraft_core::{CellError, MAX_ROWS};
+use gridfabrica_core::addr::{letters_to_col, parse_a1_prefix};
+use gridfabrica_core::{CellError, MAX_ROWS};
 
 use crate::ast::*;
 use crate::lexer::{Tok, Token, tokenize};

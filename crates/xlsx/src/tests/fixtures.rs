@@ -1,7 +1,7 @@
 //! Hand-written packages exercising specific reader paths.
 
-use gridcraft_core::{CellError, CellRef, DateSystem, RangeRef, Value};
-use gridcraft_model::{CalcMode, CfRule, Color, HAlign, PatternType, StyleId, Underline, Visibility};
+use gridfabrica_core::{CellError, CellRef, DateSystem, RangeRef, Value};
+use gridfabrica_model::{CalcMode, CfRule, Color, HAlign, PatternType, StyleId, Underline, Visibility};
 
 use super::minimal;
 use crate::read_xlsx;
@@ -246,7 +246,7 @@ Check this</t></r></text></comment></commentList></comments>"#;
     assert_eq!(t.name, "Sales");
     assert!(t.totals_row && t.header_row && t.filter_button && t.last_col && t.banded_rows);
     assert_eq!(t.columns[0].totals_label.as_deref(), Some("Total"));
-    assert_eq!(t.columns[1].totals, gridcraft_model::TotalsFn::Sum);
+    assert_eq!(t.columns[1].totals, gridfabrica_model::TotalsFn::Sum);
     assert_eq!(t.columns[2].totals_label.as_deref(), Some("SUBTOTAL(109,[Tax])"));
     assert!(t.columns[2].formula.is_some());
     assert_eq!(t.style, "TableStyleMedium9");
@@ -256,7 +256,7 @@ Check this</t></r></text></comment></commentList></comments>"#;
     let v2 = &s.validations[1];
     assert!(!v2.in_cell_dropdown);
     assert_eq!(v2.f2.as_deref(), Some("10"));
-    assert_eq!(v2.error_style, gridcraft_model::ErrorStyle::Warning);
+    assert_eq!(v2.error_style, gridfabrica_model::ErrorStyle::Warning);
     assert_eq!(s.validations[2].f1, "=Other!$A$1:$A$3");
     let af = s.autofilter.as_ref().unwrap();
     assert_eq!(af.criteria.len(), 2);
@@ -268,7 +268,7 @@ Check this</t></r></text></comment></commentList></comments>"#;
     assert!(p.format_cells && p.sort && !p.insert_rows && p.select_locked);
     assert!(rep.warnings.iter().any(|w| w.contains("password")));
     assert_eq!(s.sparklines.len(), 1);
-    assert_eq!(s.sparklines[0].kind, gridcraft_model::SparklineKind::Column);
+    assert_eq!(s.sparklines[0].kind, gridfabrica_model::SparklineKind::Column);
 }
 
 #[test]
@@ -323,7 +323,7 @@ fn drawing_with_picture_and_chart() {
     assert_eq!(img.anchor.width, 118.0);
     assert_eq!(img.anchor.height, 100.0);
     let ch = &s.charts[0];
-    assert_eq!(ch.kind, gridcraft_model::ChartKind::Combo);
+    assert_eq!(ch.kind, gridfabrica_model::ChartKind::Combo);
     assert_eq!(ch.title.as_deref(), Some("Sales"));
     assert_eq!(ch.anchor.width, 480.0);
     assert_eq!(ch.series.len(), 2);
@@ -332,8 +332,16 @@ fn drawing_with_picture_and_chart() {
     assert_eq!(ch.series[0].color, Some(Color::Rgb(0xFF0000)));
     assert_eq!(ch.series[1].name.as_deref(), Some("Lit"));
     assert!(ch.series[1].secondary);
-    assert_eq!(ch.series[1].kind, Some(gridcraft_model::ChartKind::LineMarkers));
+    assert_eq!(ch.series[1].kind, Some(gridfabrica_model::ChartKind::LineMarkers));
     assert!(ch.data_labels && ch.gridlines);
-    assert_eq!(ch.legend, gridcraft_model::LegendPos::Top);
+    assert_eq!(ch.legend, gridfabrica_model::LegendPos::Top);
     assert_eq!(ch.x_title.as_deref(), Some("Region"));
+}
+
+#[test]
+fn chinese_xlsx_inline_text_is_preserved() {
+    let body = r#"<sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>中文文档：北京、上海</t></is></c><c r="B1" t="inlineStr"><is><r><t>测试</t></r><r><t>数据</t></r></is></c></row></sheetData>"#;
+    let (wb, _) = read_xlsx(&minimal(body, &[], "", "")).unwrap();
+    assert_eq!(wb.sheet(0).unwrap().value(at("A1")), Value::text("中文文档：北京、上海"));
+    assert_eq!(wb.sheet(0).unwrap().value(at("B1")), Value::text("测试数据"));
 }

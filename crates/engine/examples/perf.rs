@@ -1,9 +1,9 @@
 //! Performance scenarios on large workbooks (release build):
-//! `cargo run --release -p gridcraft-engine --example perf -- [rows]`
+//! `cargo run --release -p gridfabrica-engine --example perf -- [rows]`
 
 use std::time::Instant;
 
-use gridcraft_engine::Session;
+use gridfabrica_engine::Session;
 use serde_json::json;
 
 fn main() {

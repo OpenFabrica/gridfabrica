@@ -1,6 +1,6 @@
-# GridCraft roadmap
+# GridFabrica roadmap
 
-GridCraft aims at full Microsoft Excel parity — and to be better: faster, open (XLSX is the
+GridFabrica aims at full Microsoft Excel parity — and to be better: faster, open (XLSX is the
 native format), fully scriptable by agents (MCP + control channel + CLI), and available on the
 web.
 
@@ -44,7 +44,7 @@ without losing data, and not hit a crash in a normal session. The gates:
 weeks running continuously with 3–4 parallel agents), so **≈ 215 hours in total from today**.
 Breakdown under "What's left" below.
 
-Scope decisions that affect the count: VBA is out of scope (GridCraft has its own recorded and
+Scope decisions that affect the count: VBA is out of scope (GridFabrica has its own recorded and
 editable scripts instead), and features that need Microsoft cloud services (Copilot, live Stocks/
 Geography data types, co-authoring through OneDrive, Smart Lookup, Translate) will be replaced
 by open equivalents or left out, not cloned.
@@ -126,11 +126,11 @@ by open equivalents or left out, not cloned.
 | M9 | Page layout & print | 🟡 most; true Page Layout view remains |
 | M10 | PivotTables, Solver, Analysis ToolPak | 🟡 PivotTables in; slicers, Solver, ToolPak remain |
 | M11 | Automation (record actions, scripts) | ✅ done |
-| M12 | Performance, accessibility, i18n | 🟡 partial |
+| M12 | Performance, accessibility, i18n | 🟡 partial; English / Simplified Chinese UI switching and persistence implemented ([localization](docs/localization.md)) |
 | M13 | Release & polish | 🟡 tooling ready; needs release secrets |
 
 ## How to measure
 
 - `cargo xtask parity` — catalog coverage (feature names from Excel's ribbon and menus).
 - `cargo test --workspace` — engine, formula, function, XLSX and UI behaviour.
-- `cargo run --release -p gridcraft-ui-egui --example snapshot -- --sample sales out.png` — look at the UI offscreen.
+- `cargo run --release -p gridfabrica-ui-egui --example snapshot -- --sample sales out.png` — look at the UI offscreen.

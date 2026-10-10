@@ -22,7 +22,7 @@ const RESOURCE_NOT_FOUND: i64 = -32002;
 /// Longest accepted message line (16 MB): bigger payloads belong in files.
 const MAX_LINE: usize = 16 * 1024 * 1024;
 
-const INSTRUCTIONS: &str = "GridCraft is a spreadsheet app (an Excel clone). Cells use A1 notation (\"B2\", \"A1:D10\", \
+const INSTRUCTIONS: &str = "GridFabrica is a spreadsheet app (an Excel clone). Cells use A1 notation (\"B2\", \"A1:D10\", \
 \"Sheet2!A1:B3\"). Every action is a command: find ids and parameters with list_commands and run any of them with \
 execute_command. Convenience tools cover the common flow: write_range / set_cell to enter values and formulas (strings \
 starting with = are formulas), read_range / get_cell to read computed values back, format_range, create_table, \
@@ -31,9 +31,9 @@ open_workbook / save_workbook. inspect_workbook summarizes sheets, used ranges, 
 list_functions lists the worksheet functions.";
 
 /// Resource URIs.
-pub const WORKBOOK_URI: &str = "gridcraft://workbook";
-pub const COMMANDS_URI: &str = "gridcraft://commands";
-pub const FUNCTIONS_URI: &str = "gridcraft://functions";
+pub const WORKBOOK_URI: &str = "gridfabrica://workbook";
+pub const COMMANDS_URI: &str = "gridfabrica://commands";
+pub const FUNCTIONS_URI: &str = "gridfabrica://functions";
 
 /// An MCP server bound to one backend.
 pub struct Server {
@@ -154,7 +154,7 @@ impl Server {
                 Ok(json!({
                     "protocolVersion": version,
                     "capabilities": {"tools": {"listChanged": false}, "resources": {"listChanged": false, "subscribe": false}, "prompts": {"listChanged": false}},
-                    "serverInfo": {"name": "gridcraft", "title": "GridCraft", "version": env!("CARGO_PKG_VERSION")},
+                    "serverInfo": {"name": "gridfabrica", "title": "GridFabrica", "version": env!("CARGO_PKG_VERSION")},
                     "instructions": format!("{INSTRUCTIONS} Backend: {}.", self.backend.describe()),
                 }))
             }
@@ -179,9 +179,11 @@ impl Server {
             "resources/read" => {
                 let uri = params.get("uri").and_then(Value::as_str).ok_or((INVALID_PARAMS, "missing `uri`".to_string()))?;
                 let v = match uri {
-                    WORKBOOK_URI => self.backend.call("document.inspect", json!({})),
-                    COMMANDS_URI => self.backend.call("engine.commands", json!({})),
-                    FUNCTIONS_URI => self.backend.call("engine.execute", json!({"command": "formulas.functions", "params": {}})),
+                    WORKBOOK_URI | "gridcraft://workbook" => self.backend.call("document.inspect", json!({})),
+                    COMMANDS_URI | "gridcraft://commands" => self.backend.call("engine.commands", json!({})),
+                    FUNCTIONS_URI | "gridcraft://functions" => {
+                        self.backend.call("engine.execute", json!({"command": "formulas.functions", "params": {}}))
+                    }
                     _ => return Err((RESOURCE_NOT_FOUND, format!("resource not found: {uri}"))),
                 }
                 .map_err(|e| (INTERNAL_ERROR, e))?;

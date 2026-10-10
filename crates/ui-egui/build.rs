@@ -12,7 +12,13 @@ use std::fmt::Write as _;
 
 use serde_json::Value;
 
+mod build_i18n;
+
 fn main() {
+    if let Err(e) = build_i18n::generate() {
+        eprintln!("localization build failed: {e}");
+        std::process::exit(1);
+    }
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../contributors");
     let json = read(&dir.join("contributors.json"), "the About window shows no contributors", |t| {
         serde_json::from_str::<Value>(t).map_err(|e| e.to_string())

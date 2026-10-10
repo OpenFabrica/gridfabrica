@@ -1,4 +1,4 @@
-use gridcraft_core::{CellRef, Value};
+use gridfabrica_core::{CellRef, Value};
 use serde_json::json;
 
 use crate::Session;
@@ -182,7 +182,7 @@ fn ink_strokes_and_ink_to_shape() {
     s.execute("draw.stroke", json!({"points": pts})).unwrap();
     let sh = s.doc().unwrap().wb.active().unwrap().clone();
     assert_eq!(sh.shapes.len(), 1);
-    assert_eq!(sh.shapes[0].kind, gridcraft_model::ShapeKind::Ink);
+    assert_eq!(sh.shapes[0].kind, gridfabrica_model::ShapeKind::Ink);
     let r = s.execute("draw.inkToShape", json!({})).unwrap();
     assert_eq!(r["kind"], "Rectangle");
     // An open stroke becomes a line.

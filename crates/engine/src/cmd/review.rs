@@ -1,6 +1,6 @@
 //! Review tab: protection, spelling (basic), workbook statistics.
 
-use gridcraft_model::{SheetProtection, password_hash};
+use gridfabrica_model::{SheetProtection, password_hash};
 use serde_json::{Value as Json, json};
 
 use super::*;

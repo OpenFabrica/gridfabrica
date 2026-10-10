@@ -3,9 +3,9 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-use gridcraft_core::{CellRef, RangeRef, Value};
-use gridcraft_model::{Sheet, Workbook};
-use gridcraft_numfmt::{Formatted, NumberFormat, format_value};
+use gridfabrica_core::{CellRef, RangeRef, Value};
+use gridfabrica_model::{Sheet, Workbook};
+use gridfabrica_numfmt::{Formatted, NumberFormat, format_value};
 
 /// Parsed number formats are cached by code.
 fn parsed(code: &str) -> NumberFormat {

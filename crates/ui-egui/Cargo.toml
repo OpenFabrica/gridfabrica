@@ -1,21 +1,25 @@
 [package]
-name = "gridcraft-ui-egui"
+name = "gridfabrica-ui-egui"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "GridCraft egui frontend (Excel-style UI); swappable — nothing below depends on it"
+description = "GridFabrica egui frontend (Excel-style UI); swappable — nothing below depends on it"
 
 [lints]
 workspace = true
 
 [dependencies]
-gridcraft-engine = { workspace = true }
-gridcraft-chart = { workspace = true }
+gridfabrica-engine = { workspace = true }
+gridfabrica-chart = { workspace = true }
 egui = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 log = { workspace = true }
 image = { workspace = true }
+read-fonts = "0.41"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+egui = { workspace = true, features = ["default_fonts"] }
 
 [dev-dependencies]
 egui_kittest = { workspace = true, features = ["wgpu", "snapshot"] }

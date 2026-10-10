@@ -1,7 +1,7 @@
 //! Design tokens and fonts.
 //!
 //! Colours are our own, tuned to read like a modern desktop spreadsheet. Fonts come from the
-//! operating system at runtime (nothing bundled): the UI uses the platform UI font, cells use the
+//! operating system at runtime, with an optional open Chinese font from craft-fonts: the UI uses the platform UI font, cells use the
 //! best available match for the workbook font (Calibri/Carlito/Aptos/Arial…) with egui's built-in
 //! fonts as the last resort.
 
@@ -133,6 +133,93 @@ pub const CELL_ITALIC: &str = "cell-italic";
 pub const CELL_BOLD_ITALIC: &str = "cell-bold-italic";
 pub const SERIF: &str = "serif";
 pub const MONO: &str = "mono";
+pub const CJK_SANS: &str = "cjk-sans";
+pub const CJK_SERIF: &str = "cjk-serif";
+pub const CJK_KAI: &str = "cjk-kai";
+pub const CJK_FANG: &str = "cjk-fang";
+
+#[derive(Clone, Default)]
+struct RuntimeFonts(std::collections::BTreeMap<&'static str, Arc<FontData>>);
+
+/// Install externally loaded Chinese fonts in this context only. Unknown IDs, invalid font
+/// headers and files over 64 MiB return an error without changing the existing font set.
+/// Repeated context setup preserves the runtime fonts; workbook styles remain unchanged.
+pub fn set_runtime_fonts(ctx: &egui::Context, fonts: Vec<(&str, Vec<u8>)>) -> Result<(), String> {
+    let mut runtime = RuntimeFonts::default();
+    for (id, bytes) in fonts {
+        let key = match id {
+            "CJK_FONT" => "cjk-fallback",
+            "CJK_SERIF_FONT" => "cjk-serif-fallback",
+            "CJK_KAI_FONT" => "cjk-kai-fallback",
+            "CJK_FANG_FONT" => "cjk-fang-fallback",
+            _ => return Err(format!("Unknown font resource: {id}")),
+        };
+        if bytes.len() > 64 * 1024 * 1024 {
+            return Err(format!("Font resource exceeds 64 MiB: {id}"));
+        }
+        read_fonts::FontRef::new(&bytes).map_err(|_| format!("Invalid font resource: {id}"))?;
+        if runtime.0.insert(key, Arc::new(FontData::from_owned(bytes))).is_some() {
+            return Err(format!("Duplicate font resource: {id}"));
+        }
+    }
+    ctx.data_mut(|data| data.insert_temp(egui::Id::new("gridfabrica.runtimeFonts"), runtime));
+    install_fonts(ctx);
+    ctx.request_repaint();
+    Ok(())
+}
+
+/// Chinese faces actually available in this context. Their names are workbook font values,
+/// independent of the localized labels used by selectors.
+pub fn chinese_fonts(ctx: &egui::Context) -> Vec<&'static str> {
+    ctx.data(|data| data.get_temp(egui::Id::new("gridfabrica.chineseFonts"))).unwrap_or_default()
+}
+
+pub fn install_fonts(ctx: &egui::Context) {
+    let runtime: RuntimeFonts = ctx.data(|data| data.get_temp(egui::Id::new("gridfabrica.runtimeFonts"))).unwrap_or_default();
+    let fonts = definitions(&runtime);
+    let mut available = Vec::new();
+    if CJK_FONT.is_some() || runtime.0.contains_key("cjk-fallback") {
+        available.push("Noto Sans CJK SC");
+    }
+    // Common workbook names are compatibility choices. Their actual open substitute is shown
+    // in a tooltip; storing the requested name preserves interoperability with other readers.
+    for (key, names) in [
+        ("cjk-serif-fallback", &["宋体"][..]),
+        ("cjk-fallback", &["黑体", "微软雅黑", "等线"][..]),
+        ("cjk-kai-fallback", &["楷体"][..]),
+        ("cjk-fang-fallback", &["仿宋"][..]),
+    ] {
+        if fonts.font_data.contains_key(key) {
+            available.extend_from_slice(names);
+        }
+    }
+    if CJK_SERIF_FONT.is_some() || runtime.0.contains_key("cjk-serif-fallback") {
+        available.push("Noto Serif CJK SC");
+    }
+    if CJK_KAI_FONT.is_some() || runtime.0.contains_key("cjk-kai-fallback") {
+        available.push("LXGW WenKai");
+    }
+    if CJK_FANG_FONT.is_some() || runtime.0.contains_key("cjk-fang-fallback") {
+        available.push("Zhuque Fangsong (technical preview)");
+    }
+    if fonts.font_data.contains_key("cjk-serif-system") {
+        available.push("Source Han Serif CN Light");
+    }
+    ctx.data_mut(|data| data.insert_temp(egui::Id::new("gridfabrica.chineseFonts"), available));
+    ctx.set_fonts(fonts);
+}
+
+/// Open font used to display a common workbook font name. This does not rename stored styles
+/// or claim that a proprietary font is bundled; exact glyphs and metrics may differ.
+pub fn font_substitute(name: &str) -> Option<&'static str> {
+    match name.to_ascii_lowercase().as_str() {
+        "宋体" | "simsun" | "nsimsun" => Some("Noto Serif CJK SC"),
+        "黑体" | "simhei" | "微软雅黑" | "microsoft yahei" | "等线" | "dengxian" => Some("Noto Sans CJK SC"),
+        "楷体" | "kaiti" | "楷体_gb2312" => Some("LXGW WenKai"),
+        "仿宋" | "fangsong" | "仿宋_gb2312" => Some("Zhuque Fangsong (technical preview)"),
+        _ => None,
+    }
+}
 
 pub fn ui_font(size: f32) -> FontId {
     FontId::new(size, FontFamily::Name(UI.into()))
@@ -143,7 +230,25 @@ pub fn ui_bold(size: f32) -> FontId {
 
 /// The font family to use for a cell font name and weight.
 pub fn cell_family(name: &str, bold: bool, italic: bool) -> FontFamily {
+    if let Some(substitute) = font_substitute(name) {
+        return cell_family(substitute, bold, italic);
+    }
     let lower = name.to_ascii_lowercase();
+    if lower == "lxgw wenkai" {
+        return FontFamily::Name(CJK_KAI.into());
+    }
+    if lower.starts_with("zhuque fangsong") {
+        return FontFamily::Name(CJK_FANG.into());
+    }
+    if lower == "source han serif cn light" {
+        return FontFamily::Name("cjk-serif-system".into());
+    }
+    if lower.contains("noto sans cjk") || lower.contains("source han sans") || name == "思源黑体" {
+        return FontFamily::Name(CJK_SANS.into());
+    }
+    if lower.contains("source han serif") || lower.contains("noto serif cjk") || name == "思源宋体" {
+        return FontFamily::Name(CJK_SERIF.into());
+    }
     if lower.contains("courier") || lower.contains("mono") || lower.contains("consolas") {
         return FontFamily::Name(MONO.into());
     }
@@ -287,8 +392,34 @@ fn candidates(role: &str) -> Vec<(String, u32)> {
     v
 }
 
-/// Builds the font set from system fonts (with egui's defaults as fallback).
+include!(concat!(env!("OUT_DIR"), "/cjk_font.rs"));
+
+/// Chinese fallback: the optional OFL font is available on every target; native builds also
+/// discover installed CJK fonts. Font assets stay outside this repository.
+fn cjk_font() -> Option<FontData> {
+    if let Some(bytes) = CJK_FONT {
+        return Some(FontData::from_static(bytes));
+    }
+    let home = home_fonts("SourceHanSansCN-Regular.otf");
+    let windows = std::env::var("WINDIR").unwrap_or_else(|_| r"C:\Windows".into());
+    let windows = std::path::PathBuf::from(windows).join("Fonts/msyh.ttc");
+    let windows = windows.to_string_lossy();
+    try_load(&[
+        (&home, 0),
+        ("/System/Library/Fonts/PingFang.ttc", 0),
+        ("/System/Library/Fonts/STHeiti Light.ttc", 0),
+        ("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", 2),
+        ("/usr/share/fonts/truetype/wqy/wqy-microhei.ttc", 0),
+        (&windows, 0),
+    ])
+}
+
+/// Builds the font set from system fonts, optional craft-fonts, and egui defaults.
 pub fn font_definitions() -> FontDefinitions {
+    definitions(&RuntimeFonts::default())
+}
+
+fn definitions(runtime: &RuntimeFonts) -> FontDefinitions {
     let mut fonts = FontDefinitions::default();
     let base_prop: Vec<String> = fonts.families.get(&FontFamily::Proportional).cloned().unwrap_or_default();
     let base_mono: Vec<String> = fonts.families.get(&FontFamily::Monospace).cloned().unwrap_or_default();
@@ -307,6 +438,41 @@ pub fn font_definitions() -> FontDefinitions {
         }
         chain.extend(if role == MONO { base_mono.clone() } else { base_prop.clone() });
         chain.retain(|k| fonts.font_data.contains_key(k));
+        fonts.families.insert(FontFamily::Name(role.into()), chain);
+    }
+    // Explicit Chinese faces put the CJK font first (including Latin glyphs). The ordinary
+    // workbook families retain their existing primary face and use CJK only for missing glyphs.
+    let sans_key = "cjk-fallback".to_string();
+    let serif_key = "cjk-serif-fallback".to_string();
+    let sans = runtime.0.get("cjk-fallback").or_else(|| runtime.0.values().next()).cloned().or_else(|| cjk_font().map(Arc::new));
+    if let Some(font) = sans {
+        fonts.font_data.insert(sans_key.clone(), font);
+        for chain in fonts.families.values_mut() {
+            chain.push(sans_key.clone());
+        }
+    }
+    for (key, bytes) in [(serif_key.as_str(), CJK_SERIF_FONT), ("cjk-kai-fallback", CJK_KAI_FONT), ("cjk-fang-fallback", CJK_FANG_FONT)] {
+        if let Some(bytes) = bytes {
+            fonts.font_data.insert(key.to_string(), Arc::new(FontData::from_static(bytes)));
+        }
+    }
+    if let Some(font) = try_load(&[(&home_fonts("SourceHanSerifCN-Light.otf"), 0)]) {
+        fonts.font_data.insert("cjk-serif-system".into(), Arc::new(font));
+    }
+    for (key, font) in &runtime.0 {
+        fonts.font_data.insert((*key).into(), font.clone());
+    }
+    for (role, primary) in [
+        (CJK_SANS, sans_key.as_str()),
+        (CJK_SERIF, serif_key.as_str()),
+        (CJK_KAI, "cjk-kai-fallback"),
+        (CJK_FANG, "cjk-fang-fallback"),
+        ("cjk-serif-system", "cjk-serif-system"),
+    ] {
+        let mut chain = vec![primary.to_string(), "cjk-serif-system".into(), sans_key.clone()];
+        chain.extend(base_prop.clone());
+        chain.retain(|key| fonts.font_data.contains_key(key));
+        chain.dedup();
         fonts.families.insert(FontFamily::Name(role.into()), chain);
     }
     // Default proportional text in widgets uses the UI font.
@@ -350,4 +516,28 @@ pub fn apply(ctx: &egui::Context, dark: bool) {
 /// Model colour → egui colour.
 pub fn color32(rgb: [u8; 3]) -> Color32 {
     Color32::from_rgb(rgb[0], rgb[1], rgb[2])
+}
+
+#[cfg(test)]
+mod font_tests {
+    use super::*;
+
+    #[test]
+    fn runtime_fonts_survive_setup_and_reject_invalid_updates_atomically() {
+        let ctx = egui::Context::default();
+        let other = egui::Context::default();
+        let definitions = font_definitions();
+        let Some(font) = definitions.font_data.get("cjk-fallback") else { return };
+        set_runtime_fonts(&ctx, vec![("CJK_FONT", font.font.to_vec())]).unwrap();
+        install_fonts(&ctx);
+        install_fonts(&ctx);
+        assert!(chinese_fonts(&ctx).contains(&"Noto Sans CJK SC"));
+        for update in [vec![("unknown", Vec::new())], vec![("CJK_KAI_FONT", b"<html>404</html>".to_vec())]] {
+            assert!(set_runtime_fonts(&ctx, update).is_err());
+            let saved: RuntimeFonts = ctx.data(|data| data.get_temp(egui::Id::new("gridfabrica.runtimeFonts"))).unwrap();
+            assert_eq!(saved.0.len(), 1);
+            assert_eq!(saved.0.get("cjk-fallback").unwrap().font.as_ref(), font.font.as_ref());
+        }
+        assert!(other.data(|data| data.get_temp::<RuntimeFonts>(egui::Id::new("gridfabrica.runtimeFonts"))).is_none());
+    }
 }

@@ -2,9 +2,9 @@
 
 use std::sync::Arc;
 
-use gridcraft_core::parse::parse_input;
-use gridcraft_core::{CellRef, MAX_COLS, MAX_ROWS, Value, number_to_text};
-use gridcraft_model::{Cell, NumFmt, Sheet, StyleId, Workbook};
+use gridfabrica_core::parse::parse_input;
+use gridfabrica_core::{CellRef, MAX_COLS, MAX_ROWS, Value, number_to_text};
+use gridfabrica_model::{Cell, NumFmt, Sheet, StyleId, Workbook};
 
 use crate::{CsvOptions, IoError};
 
@@ -14,7 +14,9 @@ const CP1252: [u32; 32] = [
     0x201C, 0x201D, 0x2022, 0x2013, 0x2014, 0x02DC, 0x2122, 0x0161, 0x203A, 0x0153, 0x9D, 0x017E, 0x0178,
 ];
 
-/// Decodes CSV bytes: UTF-8/UTF-16 BOMs, else UTF-8, else Windows-1252.
+/// Decodes CSV bytes: Unicode BOMs, then valid UTF-8, then detected legacy text.
+/// Detection distinguishes Chinese GBK/GB18030 from Western encodings. Unknown or malformed
+/// legacy text retains the previous Windows-1252 fallback, rather than introducing replacements.
 pub fn decode_text(bytes: &[u8]) -> String {
     if let Some(rest) = bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]) {
         return String::from_utf8_lossy(rest).into_owned();
@@ -29,16 +31,25 @@ pub fn decode_text(bytes: &[u8]) -> String {
     if let Some(rest) = bytes.strip_prefix(&[0xFE, 0xFF]) {
         return utf16(rest, false);
     }
-    match std::str::from_utf8(bytes) {
-        Ok(s) => s.to_string(),
-        Err(_) => bytes
-            .iter()
-            .map(|&b| match b {
-                0x80..=0x9F => char::from_u32(CP1252.get((b - 0x80) as usize).copied().unwrap_or(0xFFFD)).unwrap_or('\u{FFFD}'),
-                _ => b as char,
-            })
-            .collect(),
+    if let Ok(text) = std::str::from_utf8(bytes) {
+        return text.to_string();
     }
+    // Feed a bounded sample. A partial sample is not marked final: the cut can fall between
+    // a legacy encoding's lead/trail bytes. Decode the complete file only after detection.
+    let sample = bytes.get(..bytes.len().min(64 * 1024)).unwrap_or(bytes);
+    let mut detector = chardetng::EncodingDetector::new(chardetng::Iso2022JpDetection::Deny);
+    detector.feed(sample, sample.len() == bytes.len());
+    let encoding = detector.guess(None, chardetng::Utf8Detection::Deny);
+    if let Some(text) = encoding.decode_without_bom_handling_and_without_replacement(bytes) {
+        return text.into_owned();
+    }
+    bytes
+        .iter()
+        .map(|&b| match b {
+            0x80..=0x9F => char::from_u32(CP1252.get((b - 0x80) as usize).copied().unwrap_or(0xFFFD)).unwrap_or('\u{FFFD}'),
+            _ => b as char,
+        })
+        .collect()
 }
 
 /// Picks comma, semicolon or tab: the candidate with the most consistent count per line
@@ -121,6 +132,10 @@ fn parse_records(text: &str, delim: char, quote: char, mut on_record: impl FnMut
 }
 
 pub fn read_csv(bytes: &[u8], opts: &CsvOptions) -> Result<Workbook, IoError> {
+    // Bound allocations in the legacy decoder as well as the spreadsheet parser (wasm32 too).
+    if bytes.len() > 128 * 1024 * 1024 {
+        return Err(IoError::TooLarge("text imports are limited to 128 MiB".into()));
+    }
     let text = decode_text(bytes);
     let quote = if opts.quote == 0 { '"' } else { opts.quote as char };
     let delim = if opts.delimiter == 0 { sniff_delimiter(&text, quote) } else { opts.delimiter } as char;

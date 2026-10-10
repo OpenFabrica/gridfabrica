@@ -1,29 +1,29 @@
 [workspace]
 resolver = "3"
 members = ["crates/*", "apps/*", "xtask"]
-default-members = ["crates/*", "apps/gridcraft", "apps/gridcraft-cli", "xtask"]
+default-members = ["crates/*", "apps/gridfabrica", "apps/gridfabrica-cli", "xtask"]
 
 [workspace.package]
 version = "0.4.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 rust-version = "1.90"
-repository = "https://github.com/storytold/gridcraft"
+repository = "https://github.com/OpenFabrica/gridfabrica"
 
 [workspace.dependencies]
 # internal
-gridcraft-core = { path = "crates/core" }
-gridcraft-numfmt = { path = "crates/numfmt" }
-gridcraft-formula = { path = "crates/formula" }
-gridcraft-functions = { path = "crates/functions" }
-gridcraft-model = { path = "crates/model" }
-gridcraft-calc = { path = "crates/calc" }
-gridcraft-xlsx = { path = "crates/xlsx" }
-gridcraft-chart = { path = "crates/chart" }
-gridcraft-engine = { path = "crates/engine" }
-gridcraft-ui-egui = { path = "crates/ui-egui" }
-gridcraft-mcp = { path = "crates/mcp" }
-gridcraft-pdf = { path = "crates/pdf" }
+gridfabrica-core = { path = "crates/core" }
+gridfabrica-numfmt = { path = "crates/numfmt" }
+gridfabrica-formula = { path = "crates/formula" }
+gridfabrica-functions = { path = "crates/functions" }
+gridfabrica-model = { path = "crates/model" }
+gridfabrica-calc = { path = "crates/calc" }
+gridfabrica-xlsx = { path = "crates/xlsx" }
+gridfabrica-chart = { path = "crates/chart" }
+gridfabrica-engine = { path = "crates/engine" }
+gridfabrica-ui-egui = { path = "crates/ui-egui" }
+gridfabrica-mcp = { path = "crates/mcp" }
+gridfabrica-pdf = { path = "crates/pdf" }
 
 # foundation
 thiserror = "2"
@@ -37,7 +37,7 @@ zip = { version = "3", default-features = false, features = ["deflate"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 
 # ui
-egui = "0.36"
+egui = { version = "0.36", default-features = false }
 egui_extras = { version = "0.36", default-features = false }
 eframe = { version = "0.36", default-features = false }
 egui_kittest = "0.36"

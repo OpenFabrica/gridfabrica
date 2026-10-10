@@ -1,8 +1,8 @@
 //! Formula text conversion between the model (canonical text, no `=`) and files (`_xlfn.`
 //! prefixes for newer functions).
 
-use gridcraft_formula::Expr;
-use gridcraft_model::Formula;
+use gridfabrica_formula::Expr;
+use gridfabrica_model::Formula;
 
 /// Formula text for a file.
 pub fn to_file(f: &Formula) -> String {
@@ -15,7 +15,7 @@ pub fn to_file(f: &Formula) -> String {
 /// Arbitrary formula text (names, CF, validation) for a file. Unparseable text is kept.
 pub fn text_to_file(text: &str) -> String {
     let body = text.strip_prefix('=').unwrap_or(text);
-    match gridcraft_formula::parse(body) {
+    match gridfabrica_formula::parse(body) {
         Ok(e) => expr_to_file(e),
         Err(_) => body.to_string(),
     }
@@ -29,14 +29,14 @@ fn expr_to_file(e: Expr) -> String {
         },
         other => other,
     });
-    gridcraft_formula::print(&e)
+    gridfabrica_formula::print(&e)
 }
 
 /// Formula text read from a file → model text (strips prefixes when it parses).
 pub fn from_file(text: &str) -> String {
     let body = text.strip_prefix('=').unwrap_or(text);
-    match gridcraft_formula::parse(body) {
-        Ok(e) => gridcraft_formula::print(&e),
+    match gridfabrica_formula::parse(body) {
+        Ok(e) => gridfabrica_formula::print(&e),
         Err(_) => body.to_string(),
     }
 }

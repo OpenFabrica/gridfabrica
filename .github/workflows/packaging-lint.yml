@@ -46,20 +46,20 @@ jobs:
           }
       - name: XML, desktop entry, AppStream, Flatpak manifest
         run: |
-          xmllint --noout packaging/windows/gridcraft.wxs packaging/macos/*.plist* packaging/linux/*.xml*
+          xmllint --noout packaging/windows/gridfabrica.wxs packaging/macos/*.plist* packaging/linux/*.xml*
           # Windows Installer needs Icon ids ending in .ico or .exe, or shortcuts show a blank icon.
-          if grep -oE '<Icon Id="[^"]*"' packaging/windows/gridcraft.wxs | grep -vE '\.(ico|exe)"$'; then
+          if grep -oE '<Icon Id="[^"]*"' packaging/windows/gridfabrica.wxs | grep -vE '\.(ico|exe)"$'; then
             echo "::error::Icon Id must end in .ico or .exe"; exit 1
           fi
-          desktop-file-validate packaging/linux/ai.storyteller.gridcraft.desktop
-          sed -e 's/@VERSION@/0.0.0/' -e 's/@DATE@/2026-01-01/' packaging/linux/ai.storyteller.gridcraft.metainfo.xml.in >"$RUNNER_TEMP/ai.storyteller.gridcraft.metainfo.xml"
-          appstreamcli validate --no-net --explain "$RUNNER_TEMP/ai.storyteller.gridcraft.metainfo.xml"
+          desktop-file-validate packaging/linux/ai.storyteller.gridfabrica.desktop
+          sed -e 's/@VERSION@/0.0.0/' -e 's/@DATE@/2026-01-01/' packaging/linux/ai.storyteller.gridfabrica.metainfo.xml.in >"$RUNNER_TEMP/ai.storyteller.gridfabrica.metainfo.xml"
+          appstreamcli validate --no-net --explain "$RUNNER_TEMP/ai.storyteller.gridfabrica.metainfo.xml"
           python3 - <<'EOF'
           import yaml
-          src = yaml.safe_load(open("packaging/linux/flatpak/ai.storyteller.gridcraft.yml"))
-          bundle = yaml.safe_load(open("packaging/linux/flatpak/ai.storyteller.gridcraft.bundle.yml"))
+          src = yaml.safe_load(open("packaging/linux/flatpak/ai.storyteller.gridfabrica.yml"))
+          bundle = yaml.safe_load(open("packaging/linux/flatpak/ai.storyteller.gridfabrica.bundle.yml"))
           for m in (src, bundle):
-              assert m["id"] == "ai.storyteller.gridcraft" and m["command"] == "gridcraft", m["id"]
+              assert m["id"] == "ai.storyteller.gridfabrica" and m["command"] == "gridfabrica", m["id"]
           for key in ("runtime", "runtime-version", "sdk", "finish-args"):
               assert src[key] == bundle[key], f"Flatpak manifests disagree on {key}: {src[key]} vs {bundle[key]}"
           print("Flatpak manifests ok")

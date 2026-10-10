@@ -1,7 +1,7 @@
 //! Draw tab: pen and eraser tools, ink strokes, Ink to Shape.
 
-use gridcraft_core::CellRef;
-use gridcraft_model::*;
+use gridfabrica_core::CellRef;
+use gridfabrica_model::*;
 use serde_json::{Value as Json, json};
 
 use super::*;

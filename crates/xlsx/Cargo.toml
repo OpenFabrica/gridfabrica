@@ -1,17 +1,19 @@
 [package]
-name = "gridcraft-xlsx"
+name = "gridfabrica-xlsx"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "GridCraft file formats: XLSX (SpreadsheetML) and CSV import/export"
+description = "GridFabrica file formats: XLSX (SpreadsheetML) and CSV import/export"
 
 [lints]
 workspace = true
 
 [dependencies]
-gridcraft-core = { workspace = true }
-gridcraft-formula = { workspace = true }
-gridcraft-model = { workspace = true }
+gridfabrica-core = { workspace = true }
+gridfabrica-formula = { workspace = true }
+gridfabrica-model = { workspace = true }
 thiserror = { workspace = true }
 quick-xml = { workspace = true }
 zip = { workspace = true }
+chardetng = "1"
+encoding_rs = "0.8"

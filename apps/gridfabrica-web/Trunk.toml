@@ -1,0 +1,15 @@
+# Build with: trunk build --release   (from apps/gridfabrica-web)
+[build]
+target = "index.html"
+dist = "../../dist/web"
+public_url = "./"
+filehash = true
+
+[[hooks]]
+stage = "post_build"
+command = "python3"
+command_arguments = ["../../packaging/web/fonts.py"]
+
+[serve]
+addresses = ["127.0.0.1"]
+port = 8771

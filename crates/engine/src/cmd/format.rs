@@ -1,7 +1,7 @@
 //! Formatting: Home › Font, Alignment, Number, Styles, Cells › Format.
 
-use gridcraft_core::{CellRef, RangeRef};
-use gridcraft_model::*;
+use gridfabrica_core::{CellRef, RangeRef};
+use gridfabrica_model::*;
 use serde_json::{Value as Json, json};
 
 use super::*;
@@ -558,7 +558,7 @@ fn merge(s: &mut Session, p: &Json, how: &str) -> Result<Json> {
                         let others: Vec<CellRef> = sh.cells.iter_range(*r).map(|(c, _)| c).filter(|c| *c != r.start).collect();
                         for c in others {
                             if let Some(mut cell) = sh.cells.get(c).cloned() {
-                                cell.value = gridcraft_core::Value::Empty;
+                                cell.value = gridfabrica_core::Value::Empty;
                                 cell.formula = None;
                                 sh.cells.set(c, cell);
                             }
@@ -610,10 +610,10 @@ fn set_fmt(s: &mut Session, p: &Json, code: &str) -> Result<Json> {
 }
 
 /// Adds or removes one decimal place in the number format (Increase/Decrease Decimal).
-pub fn adjust_decimals(code: &str, value: &gridcraft_core::Value, delta: i32) -> String {
+pub fn adjust_decimals(code: &str, value: &gridfabrica_core::Value, delta: i32) -> String {
     if code == "General" {
         // Start from the displayed number of decimals.
-        let text = value.as_f64().map(gridcraft_core::number_to_text).unwrap_or_default();
+        let text = value.as_f64().map(gridfabrica_core::number_to_text).unwrap_or_default();
         let dec = text.split_once('.').map_or(0, |(_, d)| d.len()) as i32;
         let n = (dec + delta).max(0) as usize;
         return if n == 0 { "0".into() } else { format!("0.{}", "0".repeat(n)) };
@@ -1067,7 +1067,7 @@ mod tests {
 
     #[test]
     fn decimal_steps() {
-        let v = gridcraft_core::Value::Number(1.5);
+        let v = gridfabrica_core::Value::Number(1.5);
         assert_eq!(adjust_decimals("General", &v, 1), "0.00");
         assert_eq!(adjust_decimals("General", &v, -1), "0");
         assert_eq!(adjust_decimals("0", &v, 1), "0.0");

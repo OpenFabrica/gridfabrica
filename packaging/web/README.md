@@ -1,22 +1,24 @@
-# Hosting GridCraft for the web
+# Hosting GridFabrica for the web
 
-`gridcraft-web-<version>.zip` (from the GitHub release, or `packaging/web/package.sh`) holds a
-static site in `gridcraft-web-<version>/`:
+`gridfabrica-web-<version>.zip` (from the GitHub release, or `packaging/web/package.sh`) holds a
+static site in `gridfabrica-web-<version>/`:
 
 | File | What it is |
 |---|---|
 | `index.html` | The page. It loads everything through relative URLs. |
-| `gridcraft-web-<hash>.js` | wasm-bindgen glue (generated, ES module) |
-| `gridcraft-web-<hash>_bg.wasm` | The app (compresses to roughly a third with gzip/Brotli) |
+| `gridfabrica-web-<hash>.js` | wasm-bindgen glue (generated, ES module) |
+| `gridfabrica-web-<hash>_bg.wasm` | The app (compresses to roughly a third with gzip/Brotli) |
+| `fonts/<family>-<sha256>.otf` / `.ttf` | Independent Chinese font resources; never embedded in WASM |
+| `fonts/OFL-<family>.txt` | Licences for the external fonts |
 | `_headers`, `.htaccess` | Sample header rules for Netlify/Cloudflare Pages and Apache |
 
 There is no server-side code. Upload the folder's contents anywhere that serves static files.
 
 ## Any path works
 
-All URLs in `index.html` are relative (`public_url = "./"` in `apps/gridcraft-web/Trunk.toml`),
+All URLs in `index.html` are relative (`public_url = "./"` in `apps/gridfabrica-web/Trunk.toml`),
 so the site works at a domain root (`https://example.com/`), under a prefix
-(`https://example.com/tools/gridcraft/`) and from a CDN bucket. The asset names carry a content
+(`https://example.com/tools/gridfabrica/`) and from a CDN bucket. The asset names carry a content
 hash, so they can be cached forever. Only `index.html` needs revalidation.
 
 ## Required server settings
@@ -28,10 +30,11 @@ hash, so they can be cached forever. Only `index.html` needs revalidation.
   download to roughly a third. You can also precompress (`brotli -k *.wasm`) and let
   the server send `Content-Encoding: br`.
 - **Caching:** `Cache-Control: public, max-age=31536000, immutable` on the hashed `.wasm` and
-  `.js` files, and `no-cache` on `index.html`.
+  `.js`, `.otf` and `.ttf` files, and `no-cache` on `index.html`. Serve fonts as `font/otf` or
+  `font/ttf` and enable gzip/Brotli for them too.
 - **HTTPS:** WebGPU (and the clipboard) only work in a secure context, which means `https://`
   or `http://localhost`. Over plain HTTP elsewhere, the app falls back to WebGL2.
-- **No special isolation headers:** GridCraft doesn't use `SharedArrayBuffer`, so it doesn't
+- **No special isolation headers:** GridFabrica doesn't use `SharedArrayBuffer`, so it doesn't
   need `Cross-Origin-Opener-Policy` or `Cross-Origin-Embedder-Policy`. If your site already sends
   COEP `require-corp`, also send `Cross-Origin-Resource-Policy: same-origin` (or `cross-origin`
   when the files live on a CDN) on the app's files.
@@ -39,23 +42,39 @@ hash, so they can be cached forever. Only `index.html` needs revalidation.
 nginx example:
 
 ```nginx
-location /gridcraft/ {
-    types { application/wasm wasm; text/javascript js; text/html html; }
+location /gridfabrica/ {
+    types { application/wasm wasm; text/javascript js; text/html html; font/otf otf; font/ttf ttf; }
     gzip on;
-    gzip_types application/wasm text/javascript text/html;
-    location ~* \.(wasm|js)$ { add_header Cache-Control "public, max-age=31536000, immutable"; }
+    gzip_types application/wasm text/javascript text/html font/otf font/ttf;
+    location ~* \.(wasm|js|otf|ttf)$ { add_header Cache-Control "public, max-age=31536000, immutable"; }
     location ~* index\.html$ { add_header Cache-Control "no-cache"; }
 }
 ```
 
 Local test: `python3 -m http.server 8765` inside the folder, then open http://localhost:8765/.
 
+## Chinese font resources
+
+Prepare the external craft-fonts checkout with `python3 packaging/chinese-fonts.py <checkout>`
+before building (see `docs/localization.md`). Trunk's post-build hook verifies manifest hashes
+and copies available faces plus licences to `fonts/` in its staging directory. The WASM build
+contains only URLs and expected file sizes. Keep this directory when uploading the site or
+serving it under a path prefix; the Rust shell uses document-relative URLs.
+
+Startup fetches the available faces concurrently, using the browser's normal HTTP cache. A
+30-second timeout and HTTP/length/font-header validation prevent a failed download from
+being passed to egui. The app can start with the remaining fonts and reports resource failures
+with a refresh instruction. If all resources fail, the DOM loading screen reports the error
+and suggests refreshing; egui is not started without fonts. Built-in egui fonts are disabled
+on WASM too; loaded fonts provide both Latin and Chinese text. A host that rewrites missing asset requests to `index.html` must
+exclude `fonts/` from that rewrite. Font changes produce new filenames automatically.
+
 ## Embedding in a page (iframe)
 
 ```html
 <iframe
-  src="https://example.com/gridcraft/"
-  title="GridCraft spreadsheet"
+  src="https://example.com/gridfabrica/"
+  title="GridFabrica spreadsheet"
   style="width: 100%; height: 720px; border: 0;"
   allow="fullscreen; clipboard-read; clipboard-write"
   allowfullscreen>
@@ -75,8 +94,8 @@ Local test: `python3 -m http.server 8765` inside the folder, then open http://lo
 
 ## Renderer selection
 
-GridCraft's web build is the same egui app as the desktop one, compiled to wasm
-(`apps/gridcraft-web`). It renders with the backend `apps/gridcraft-web` selects (WebGPU
+GridFabrica's web build is the same egui app as the desktop one, compiled to wasm
+(`apps/gridfabrica-web`). It renders with the backend `apps/gridfabrica-web` selects (WebGPU
 where available, otherwise WebGL2). If the web app adds URL flags to force a backend (as the
 sibling Craft apps do with `?webgl` / `?cpu`), document them here; they also work on the
 iframe `src`.

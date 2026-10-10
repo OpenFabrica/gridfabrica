@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use gridcraft_core::DateSystem;
+use gridfabrica_core::DateSystem;
 use serde::{Deserialize, Serialize};
 
 use crate::sheet::Sheet;
